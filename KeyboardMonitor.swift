@@ -8,6 +8,7 @@ class KeyboardMonitor {
     private let goveeIP: String
     private let goveePort: UInt16
     private var keepaliveTimer: Timer?
+    private var isScreenLocked: Bool = false
     
     // Colors for different layouts
     private let englishColor = (r: 255, g: 180, b: 110)
@@ -47,18 +48,65 @@ class KeyboardMonitor {
         
         print("Subscribed to layout change events")
         
-        // Start keepalive timer (every 30 seconds)
-        keepaliveTimer = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: true) { [weak self] _ in
-            self?.sendKeepalive()
-        }
-        print("Keepalive timer started (every 20 sec)")
+        // Subscribe to screen lock/unlock notifications
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(screenLocked),
+            name: NSNotification.Name("com.apple.screenIsLocked"),
+            object: nil
+        )
+        
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(screenUnlocked),
+            name: NSNotification.Name("com.apple.screenIsUnlocked"),
+            object: nil
+        )
+        
+        print("Subscribed to screen lock/unlock events")
+        
+        // Start keepalive timer (every 20 seconds)
+        startKeepaliveTimer()
         
         // Run event loop
         RunLoop.current.run()
     }
     
-    @objc private func sendKeepalive() {
+    private func startKeepaliveTimer() {
+        keepaliveTimer = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: true) { [weak self] _ in
+            self?.sendKeepalive()
+        }
+        print("Keepalive timer started (every 20 sec)")
+    }
+    
+    private func stopKeepaliveTimer() {
+        keepaliveTimer?.invalidate()
+        keepaliveTimer = nil
+        print("Keepalive timer stopped")
+    }
+    
+    @objc private func screenLocked() {
+        print("Screen locked - turning off lamps")
+        isScreenLocked = true
+        stopKeepaliveTimer()
+        sendTurnOffCommand()
+    }
+    
+    @objc private func screenUnlocked() {
+        print("Screen unlocked - restoring lamp color")
+        isScreenLocked = false
+        
+        // Restore current layout color
         if let layout = currentLayout {
+            sendColorCommand(for: layout)
+        }
+        
+        // Restart keepalive timer
+        startKeepaliveTimer()
+    }
+    
+    @objc private func sendKeepalive() {
+        if !isScreenLocked, let layout = currentLayout {
             print("Keepalive: sending current layout (\(layout))")
             sendColorCommand(for: layout, isKeepalive: true)
         }
@@ -71,7 +119,11 @@ class KeyboardMonitor {
             if let layout = newLayout {
                 print("Layout changed: \(currentLayout ?? "nil") -> \(layout)")
                 currentLayout = layout
-                sendColorCommand(for: layout)
+                
+                // Only send color command if screen is not locked
+                if !isScreenLocked {
+                    sendColorCommand(for: layout)
+                }
             }
         }
     }
@@ -89,6 +141,38 @@ class KeyboardMonitor {
         
         // Extract layout name (e.g., "com.apple.keylayout.ABC" -> "ABC")
         return id.components(separatedBy: ".").last
+    }
+    
+    private func sendTurnOffCommand() {
+        let command: [String: Any] = [
+            "msg": [
+                "cmd": "turn",
+                "data": [
+                    "value": 0
+                ]
+            ]
+        ]
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: command, options: [])
+            
+            // Send turn off command 3 times for reliability
+            for i in 1...3 {
+                udpConnection.send(content: jsonData, completion: .contentProcessed { error in
+                    if let error = error {
+                        print("ERROR sending turn off command (attempt \(i)/3): \(error)")
+                    } else if i == 1 {
+                        print("Turn off command sent (x3 for reliability)")
+                    }
+                })
+                
+                if i < 3 {
+                    usleep(10_000)
+                }
+            }
+        } catch {
+            print("ERROR creating turn off JSON: \(error)")
+        }
     }
     
     private func sendColorCommand(for layout: String, isKeepalive: Bool = false) {

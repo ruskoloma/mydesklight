@@ -14,6 +14,8 @@ The service subscribes to system keyboard layout change events and sends UDP com
 - Real-time keyboard layout monitoring
 - UDP commands sent 3x for reliability (handles packet loss)
 - Keepalive every 20 seconds to prevent lamp sleep
+- **Auto turn off when screen locks** - saves power and stops keepalive
+- **Auto restore color when screen unlocks** - resumes monitoring
 - No API key required - direct UDP control
 - Lightweight Swift binary
 
