@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""
+mydesklight - Cross-platform monitor backlight control CLI
+"""
+
+import sys
+import re
+from mydesklight_core.config import Config
+from mydesklight_core.service import ServiceManager
+
+
+def validate_ip(ip: str) -> bool:
+    """Validate IP address format"""
+    pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+    if not re.match(pattern, ip):
+        return False
+    
+    # Check each octet is 0-255
+    octets = ip.split('.')
+    return all(0 <= int(octet) <= 255 for octet in octets)
+
+
+def cmd_configure():
+    """Configure device IP addresses"""
+    config = Config()
+    
+    print("mydesklight Configuration")
+    print("=" * 40)
+    print()
+    
+    # Show current configuration
+    current_config = config.get_all_config()
+    if current_config:
+        print("Current configuration:")
+        if current_config.get('govee_ip'):
+            print(f"  Govee: {current_config['govee_ip']}")
+        if current_config.get('kasa1_ip'):
+            print(f"  Kasa 1: {current_config['kasa1_ip']}")
+        if current_config.get('kasa2_ip'):
+            print(f"  Kasa 2: {current_config['kasa2_ip']}")
+        print()
+    
+    # Configure Govee (required)
+    print("Govee Device (required):")
+    govee_ip = input("  Enter Govee IP address: ").strip()
+    
+    if not govee_ip:
+        print("Error: Govee IP is required")
+        sys.exit(1)
+    
+    if not validate_ip(govee_ip):
+        print("Error: Invalid Govee IP address format")
+        sys.exit(1)
+    
+    config.set_govee_ip(govee_ip)
+    print(f"  ✓ Govee IP set to: {govee_ip}")
+    print()
+    
+    # Configure Kasa 1 (optional)
+    print("Kasa Device 1 (optional - turns ON with service):")
+    kasa1_ip = input("  Enter Kasa 1 IP address (press Enter to skip): ").strip()
+    
+    if kasa1_ip:
+        if not validate_ip(kasa1_ip):
+            print("  Warning: Invalid IP format, skipping Kasa 1")
+        else:
+            config.set_kasa1_ip(kasa1_ip)
+            print(f"  ✓ Kasa 1 IP set to: {kasa1_ip}")
+    else:
+        print("  Kasa 1 not configured")
+    print()
+    
+    # Configure Kasa 2 (optional)
+    print("Kasa Device 2 (optional - turns ON with service, OFF on lock/stop):")
+    kasa2_ip = input("  Enter Kasa 2 IP address (press Enter to skip): ").strip()
+    
+    if kasa2_ip:
+        if not validate_ip(kasa2_ip):
+            print("  Warning: Invalid IP format, skipping Kasa 2")
+        else:
+            config.set_kasa2_ip(kasa2_ip)
+            print(f"  ✓ Kasa 2 IP set to: {kasa2_ip}")
+    else:
+        print("  Kasa 2 not configured")
+    print()
+    
+    print("=" * 40)
+    print(f"Configuration saved to: {config.get_config_path()}")
+    print()
+    print("Behavior:")
+    print("  • Service START / Screen UNLOCK:")
+    print("    - Govee: Turn on with layout color")
+    if kasa1_ip:
+        print(f"    - Kasa 1 ({kasa1_ip}): Turn ON")
+    if kasa2_ip:
+        print(f"    - Kasa 2 ({kasa2_ip}): Turn ON")
+    print()
+    print("  • Service STOP / Screen LOCK:")
+    print("    - Govee: Turn off")
+    if kasa1_ip:
+        print(f"    - Kasa 1 ({kasa1_ip}): Stay ON")
+    if kasa2_ip:
+        print(f"    - Kasa 2 ({kasa2_ip}): Turn OFF")
+
+
+def cmd_on():
+    """Start the monitoring service"""
+    service = ServiceManager()
+    if service.start():
+        print("✓ Monitor backlight service started")
+        print("  Lights will change based on keyboard layout")
+    else:
+        sys.exit(1)
+
+
+def cmd_off():
+    """Stop the monitoring service"""
+    service = ServiceManager()
+    if service.stop():
+        print("✓ Monitor backlight service stopped")
+        print("  Lights turned off")
+    else:
+        sys.exit(1)
+
+
+def cmd_status():
+    """Show service status"""
+    service = ServiceManager()
+    service.status()
+
+
+def cmd_help():
+    """Show help message"""
+    print("""
+mydesklight - Cross-platform monitor backlight control
+
+Usage:
+  mydesklight configure    Configure device IP addresses (Govee + Kasa)
+  mydesklight on           Start monitoring service (changes color by keyboard layout)
+  mydesklight off          Stop monitoring service and turn off lights
+  mydesklight status       Show service status
+  mydesklight help         Show this help message
+
+Examples:
+  mydesklight configure    # Set up Govee and Kasa devices (run this first)
+  mydesklight on           # Start automatic color changes
+  mydesklight off          # Stop and turn off lights
+
+Supported Devices:
+  • Govee (required): Monitor backlight that changes color by keyboard layout
+    - English layout (ABC/US): RGB(255, 180, 110) - Warm orange
+    - Other layouts:           RGB(120, 180, 255) - Blue
+  
+  • Kasa 1 (optional): Turns ON when service starts, stays ON when service stops
+  • Kasa 2 (optional): Turns ON when service starts, turns OFF when service stops or screen locks
+
+The service monitors your keyboard layout and automatically changes
+the monitor backlight color. It also sends keepalive signals every
+20 seconds and turns off when the screen locks.
+""")
+
+
+def main():
+    """Main CLI entry point"""
+    if len(sys.argv) < 2:
+        cmd_help()
+        sys.exit(1)
+    
+    command = sys.argv[1].lower()
+    
+    commands = {
+        'configure': cmd_configure,
+        'config': cmd_configure,
+        'on': cmd_on,
+        'start': cmd_on,
+        'off': cmd_off,
+        'stop': cmd_off,
+        'status': cmd_status,
+        'help': cmd_help,
+        '--help': cmd_help,
+        '-h': cmd_help,
+    }
+    
+    if command in commands:
+        commands[command]()
+    else:
+        print(f"Error: Unknown command '{command}'")
+        print("Run 'mydesklight help' for usage information")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,5 +1,14 @@
-# Build artifacts
+# Build artifacts - macOS
+platform/macos/KeyboardMonitor
 KeyboardMonitor
+
+# Build artifacts - Windows
+platform/windows/KeyboardMonitor.exe
+platform/windows/*.obj
+*.exe
+
+# Build artifacts - Linux
+platform/linux/keyboard_monitor
 
 # macOS
 .DS_Store
@@ -7,7 +16,7 @@ KeyboardMonitor
 # Logs
 *.log
 
-# Python (legacy files)
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -15,6 +24,9 @@ __pycache__/
 .Python
 venv/
 env/
+*.egg-info/
+dist/
+build/
 
 # IDE
 .vscode/
@@ -23,5 +35,9 @@ env/
 *.swo
 *~
 
-# Config files (keep examples only)
+# Runtime files
+*.pid
+
+# User config files
 config.json
+.config/
