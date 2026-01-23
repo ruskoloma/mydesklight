@@ -4,171 +4,315 @@
 
 - Windows 10 or later
 - Python 3.7+
-- Visual Studio Build Tools OR MinGW-w64
 
-## Quick Install
+## Quick Install (No Compilation Needed!)
 
-### Option 1: Visual Studio Build Tools (Recommended)
+### 1. Install Dependencies
 
-1. **Install Visual Studio Build Tools**:
-   - Download: https://visualstudio.microsoft.com/downloads/
-   - Select "Build Tools for Visual Studio"
-   - Install "Desktop development with C++"
+```powershell
+cd C:\path\to\mydesklight
+.\platform\windows\setup.bat
+```
 
-2. **Install Python**:
-   - Download: https://www.python.org/downloads/
-   - **Important**: Check "Add Python to PATH" during installation
+Or manually:
+```powershell
+pip install python-kasa
+```
 
-3. **Build the monitor**:
-   ```cmd
-   cd platform\windows
-   
-   REM Open "Developer Command Prompt for VS" from Start Menu
-   build.bat
-   
-   cd ..\..
-   ```
+### 2. Configure Devices
 
-### Option 2: MinGW-w64
+```powershell
+python mydesklight configure
+```
 
-1. **Install MSYS2** (easiest way to get MinGW):
-   - Download: https://www.msys2.org/
-   - Install and run MSYS2 terminal
-   - Update: `pacman -Syu`
-   - Install MinGW: `pacman -S mingw-w64-x86_64-gcc`
+Enter IP addresses when prompted:
+- **Govee**: e.g., `10.0.0.9`
+- **Kasa 1** (optional): e.g., `192.168.1.11`
+- **Kasa 2** (optional): e.g., `192.168.1.139`
 
-2. **Install Python**:
-   - Download: https://www.python.org/downloads/
-   - Check "Add Python to PATH"
+### 3. Test the Service
 
-3. **Build manually**:
-   ```bash
-   cd platform/windows
-   gcc -o KeyboardMonitor.exe KeyboardMonitor.c -lws2_32 -lwtsapi32 -O2
-   cd ../..
-   ```
+```powershell
+python mydesklight on
+python mydesklight status
+python mydesklight off
+```
 
-## Configuration
+## Install as Windows Service (Auto-start on Boot)
 
-1. **Find your Govee device IP**:
-   - Open Govee Home app
-   - Select your device
-   - Settings → Device Info → IP Address
+### Option 1: Using Task Scheduler (Recommended)
 
-2. **Configure mydesklight**:
-   ```cmd
-   python mydesklight configure
-   ```
-   Enter your Govee IP when prompted.
+1. Open **Task Scheduler** (search in Start menu)
+2. Click **Create Task** (not "Create Basic Task")
+3. **General tab**:
+   - Name: `mydesklight`
+   - Description: `Monitor backlight control service`
+   - Check: **Run whether user is logged on or not**
+   - Check: **Run with highest privileges**
+   - Configure for: **Windows 10**
+
+4. **Triggers tab**:
+   - Click **New**
+   - Begin the task: **At log on**
+   - Specific user: (your username)
+   - Click **OK**
+
+5. **Actions tab**:
+   - Click **New**
+   - Action: **Start a program**
+   - Program/script: `pythonw.exe`
+   - Add arguments: `C:\path\to\mydesklight\mydesklight on`
+   - Start in: `C:\path\to\mydesklight`
+   - Click **OK**
+
+6. **Conditions tab**:
+   - Uncheck: **Start the task only if the computer is on AC power**
+
+7. **Settings tab**:
+   - Check: **Allow task to be run on demand**
+   - Check: **If the running task does not end when requested, force it to stop**
+
+8. Click **OK** and enter your password if prompted
+
+### Option 2: Using Startup Folder
+
+1. Press `Win + R`
+2. Type: `shell:startup` and press Enter
+3. Create a new shortcut:
+   - Right-click → New → Shortcut
+   - Location: `pythonw C:\path\to\mydesklight\mydesklight on`
+   - Name: `mydesklight`
+
+### Option 3: Using NSSM (Advanced)
+
+Install NSSM (Non-Sucking Service Manager):
+
+```powershell
+# Download from https://nssm.cc/download
+# Or use chocolatey:
+choco install nssm
+
+# Install service
+nssm install mydesklight "C:\Python\python.exe" "C:\path\to\mydesklight\mydesklight" "on"
+nssm set mydesklight AppDirectory "C:\path\to\mydesklight"
+nssm set mydesklight DisplayName "mydesklight Monitor Service"
+nssm set mydesklight Description "Automatic monitor backlight control"
+nssm set mydesklight Start SERVICE_AUTO_START
+
+# Start service
+nssm start mydesklight
+
+# Check status
+nssm status mydesklight
+
+# Stop service
+nssm stop mydesklight
+
+# Remove service
+nssm remove mydesklight confirm
+```
+
+## Make `mydesklight` Command Available Globally
+
+### Option 1: Add to PATH
+
+1. Press `Win + X` → System
+2. Click **Advanced system settings**
+3. Click **Environment Variables**
+4. Under **User variables**, select **Path** → **Edit**
+5. Click **New** and add: `C:\path\to\mydesklight`
+6. Click **OK** on all dialogs
+7. Restart PowerShell
+
+Now you can use:
+```powershell
+mydesklight on
+mydesklight off
+mydesklight status
+```
+
+### Option 2: Create Batch Wrapper
+
+Create `C:\Windows\mydesklight.bat`:
+
+```batch
+@echo off
+python C:\path\to\mydesklight\mydesklight %*
+```
+
+Now you can use `mydesklight` from anywhere.
 
 ## Usage
 
-```cmd
-REM Start monitoring
+```powershell
+# Start monitoring
 python mydesklight on
 
-REM Stop monitoring and turn off lights
+# Stop monitoring and turn off lights
 python mydesklight off
 
-REM Check status
+# Check status
 python mydesklight status
+
+# Reconfigure devices
+python mydesklight configure
+
+# Show help
+python mydesklight help
 ```
 
-## Add to PATH (Optional)
+## Device Behavior
 
-To use `mydesklight` instead of `python mydesklight`:
+| Event | Govee | Kasa 1 | Kasa 2 |
+|-------|-------|--------|--------|
+| **Service Start** | ON (color) | ON | ON |
+| **Screen Unlock** | ON (color) | ON | ON |
+| **Screen Lock** | OFF | **Stays ON** | OFF |
+| **Service Stop** | OFF | **Stays ON** | OFF |
 
-1. Press `Win + X` → System
-2. Click "Advanced system settings"
-3. Click "Environment Variables"
-4. Under "User variables", select "Path" → Edit
-5. Click "New" and add: `C:\path\to\monitor-backlight-service`
-6. Click OK on all dialogs
-7. Restart Command Prompt
+## Colors
 
-Now you can use:
-```cmd
-mydesklight on
-mydesklight off
+- **English layout (EN)**: RGB(255, 180, 110) - Warm orange
+- **Other layouts (RU, UA, etc.)**: RGB(120, 180, 255) - Blue
+
+## Testing
+
+### Test Govee Directly
+
+```powershell
+# Turn off
+python -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b'{\"msg\":{\"cmd\":\"turn\",\"data\":{\"value\":0}}}', ('10.0.0.9', 4003))"
+
+# Turn on
+python -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b'{\"msg\":{\"cmd\":\"turn\",\"data\":{\"value\":1}}}', ('10.0.0.9', 4003))"
 ```
 
-## Auto-Start on Login (Optional)
+### Test Kasa Devices
 
-1. Press `Win + R` and type: `shell:startup`
-2. Create a shortcut to start the service:
-   - Right-click → New → Shortcut
-   - Location: `pythonw C:\path\to\monitor-backlight-service\mydesklight on`
-   - Name: "mydesklight"
+```powershell
+# Turn on Kasa 1
+python -m kasa.cli --host 192.168.1.11 on
+
+# Turn off Kasa 2
+python -m kasa.cli --host 192.168.1.139 off
+
+# Check device status
+python -m kasa.cli --host 192.168.1.11 state
+```
 
 ## Troubleshooting
 
-### Build Errors
+### "python is not recognized"
 
-**"cl.exe is not recognized"**
-- You need to use "Developer Command Prompt for VS"
-- Or install MinGW and use gcc instead
+Install Python:
+1. Download from https://www.python.org/downloads/
+2. **Important**: Check "Add Python to PATH" during installation
 
-**"Cannot open include file 'windows.h'"**
-- Install "Desktop development with C++" in Visual Studio Build Tools
+### "ModuleNotFoundError: No module named 'kasa'"
 
-### Runtime Errors
+```powershell
+pip install python-kasa
+```
 
-**"Service won't start"**
-- Check if binary exists: `dir platform\windows\KeyboardMonitor.exe`
-- Rebuild: `cd platform\windows && build.bat`
+### Devices Not Responding
 
-**"Govee IP not configured"**
-- Run: `python mydesklight configure`
+1. Check IP addresses:
+   ```powershell
+   ping 10.0.0.9
+   ping 192.168.1.11
+   ping 192.168.1.139
+   ```
 
-**"Firewall blocking"**
-- Allow Python and KeyboardMonitor.exe through Windows Firewall
-- Control Panel → Windows Defender Firewall → Allow an app
+2. Check configuration:
+   ```powershell
+   python mydesklight status
+   ```
 
-**"Service keeps stopping"**
-- Check Task Manager for errors
-- View logs in: `%TEMP%\mydesklight.log`
+3. Reconfigure:
+   ```powershell
+   python mydesklight configure
+   ```
+
+### Service Won't Start
+
+```powershell
+# Stop any running instance
+python mydesklight off
+
+# Check for errors by running directly
+python platform\windows\keyboard_monitor.py
+```
+
+### Firewall Blocking UDP
+
+Allow Python through Windows Firewall:
+1. Control Panel → Windows Defender Firewall
+2. Allow an app or feature through Windows Defender Firewall
+3. Click **Change settings**
+4. Find **Python** and check both **Private** and **Public**
+
+## Technical Details
+
+**Implementation**: Pure Python (no compilation required!)
+- **Keyboard monitoring**: Windows API via `ctypes`
+- **UDP**: Built-in `socket` module
+- **Kasa control**: `python-kasa` library
+- **Multithreading**: `threading` for keepalive
+
+**Performance**:
+- CPU: < 0.5%
+- RAM: ~15 MB
+- Network: ~100 bytes every 20 seconds
+
+## Advantages of Python Version
+
+- No compilation needed - works immediately
+- No Visual Studio required - just Python
+- Easy to modify - edit `.py` files directly
+- Cross-platform code - easy to port
+
+## Files
+
+- `platform/windows/keyboard_monitor.py` - Main monitor script
+- `platform/windows/setup.bat` - Dependency installer
+- `mydesklight_core/` - Shared code (UDP, Kasa, config)
+- `mydesklight` - CLI tool
+
+## Customization
+
+### Change Colors
+
+Edit `mydesklight_core/udp_client.py`:
+
+```python
+# Lines 38-39
+ENGLISH_COLOR = (255, 180, 110)  # English layout
+OTHER_COLOR = (120, 180, 255)    # Other layouts
+```
+
+### View Logs
+
+Run monitor directly to see all events:
+
+```powershell
+python platform\windows\keyboard_monitor.py
+```
 
 ## Uninstall
 
-```cmd
-REM Stop service
+```powershell
+# Stop service
 python mydesklight off
 
-REM Remove configuration
+# Remove from Task Scheduler (if installed)
+# Open Task Scheduler → Delete "mydesklight" task
+
+# Remove configuration
 rmdir /s %APPDATA%\mydesklight
 
-REM Delete repository
+# Remove project
 cd ..
-rmdir /s monitor-backlight-service
-```
-
-## How It Works
-
-The Windows monitor uses:
-- **Win32 API** for keyboard layout detection (`WM_INPUTLANGCHANGE`)
-- **WTS API** for session lock/unlock detection
-- **Winsock2** for UDP communication
-- **Native C** for minimal resource usage
-
-## Color Customization
-
-Edit `platform/windows/KeyboardMonitor.c`:
-
-```c
-// Lines 17-24
-#define ENGLISH_R 255
-#define ENGLISH_G 180
-#define ENGLISH_B 110
-
-#define OTHER_R 120
-#define OTHER_G 180
-#define OTHER_B 255
-```
-
-Then rebuild:
-```cmd
-cd platform\windows
-build.bat
+rmdir /s mydesklight
 ```
 
 ## Support

@@ -13,41 +13,57 @@ class KasaClient:
     def __init__(self, ip: str):
         self.ip = ip
     
+    def _send_command(self, command: str, retries: int = 3) -> bool:
+        """
+        Send command to Kasa device with retries
+        
+        Args:
+            command: Command to send ('on' or 'off')
+            retries: Number of times to send command (default 3)
+        
+        Returns:
+            True if at least one attempt succeeded, False otherwise
+        """
+        import time
+        
+        success = False
+        for attempt in range(retries):
+            try:
+                result = subprocess.run(
+                    [sys.executable, '-m', 'kasa.cli', '--host', self.ip, command],
+                    capture_output=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    success = True
+                
+                # Small delay between retries
+                if attempt < retries - 1:
+                    time.sleep(0.1)
+                    
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                if attempt == retries - 1:  # Only print on last attempt
+                    print(f"Warning: Failed to {command} Kasa device at {self.ip}: {e}")
+        
+        return success
+    
     def turn_on(self) -> bool:
         """
-        Turn on Kasa device
+        Turn on Kasa device (sends command 3 times for reliability)
         
         Returns:
             True if successful, False otherwise
         """
-        try:
-            result = subprocess.run(
-                [sys.executable, '-m', 'kasa.cli', '--host', self.ip, 'on'],
-                capture_output=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            print(f"Warning: Failed to turn on Kasa device at {self.ip}: {e}")
-            return False
+        return self._send_command('on')
     
     def turn_off(self) -> bool:
         """
-        Turn off Kasa device
+        Turn off Kasa device (sends command 3 times for reliability)
         
         Returns:
             True if successful, False otherwise
         """
-        try:
-            result = subprocess.run(
-                [sys.executable, '-m', 'kasa.cli', '--host', self.ip, 'off'],
-                capture_output=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            print(f"Warning: Failed to turn off Kasa device at {self.ip}: {e}")
-            return False
+        return self._send_command('off')
 
 
 def control_kasa_devices(kasa1_ip: Optional[str], kasa2_ip: Optional[str], 

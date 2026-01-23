@@ -166,21 +166,22 @@ class ServiceManager:
             return False
     
     def _start_windows(self, govee_ip: str) -> bool:
-        """Start Windows monitor"""
+        """Start Windows monitor (Python version - no compilation needed)"""
         project_dir = Path(__file__).parent.parent
-        monitor_path = project_dir / 'platform' / 'windows' / 'KeyboardMonitor.exe'
+        monitor_path = project_dir / 'platform' / 'windows' / 'keyboard_monitor.py'
         
         if not monitor_path.exists():
-            print(f"Error: Monitor binary not found at {monitor_path}")
-            print("Please compile it first: cd platform/windows && build.bat")
+            print(f"Error: Monitor script not found at {monitor_path}")
             return False
         
         try:
-            # Start detached process on Windows
+            # Start Python monitor in background
             DETACHED_PROCESS = 0x00000008
+            CREATE_NO_WINDOW = 0x08000000
+            
             process = subprocess.Popen(
-                [str(monitor_path), govee_ip],
-                creationflags=DETACHED_PROCESS,
+                [sys.executable, str(monitor_path)],
+                creationflags=DETACHED_PROCESS | CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
